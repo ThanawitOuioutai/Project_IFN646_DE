@@ -1,0 +1,890 @@
+---
+title: "EdgeR_all_files"
+author: "Thanawit Ouioutai (n10739921)"
+date: "`r Sys.Date()`"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Setup library
+```{r load_library}
+library(tidyverse)
+library(dplyr)
+library(RColorBrewer)
+library(DESeq2)
+library(pheatmap)
+library(DEGreport)
+library(ggplot2)
+library(ggrepel)
+library(ggpubr)
+library(edgeR)
+```
+
+## Reading in the data
+```{r}
+raw_data355 <- read_tsv("3_500_500.tsv", show_col_types = FALSE)
+raw_data372 <- read_tsv("3_750_250.tsv", show_col_types = FALSE)
+raw_data3100 <- read_tsv("3_1000_0.tsv", show_col_types = FALSE)
+
+raw_data655 <- read_tsv("6_500_500.tsv", show_col_types = FALSE)
+raw_data672 <- read_tsv("6_750_250.tsv", show_col_types = FALSE)
+raw_data6100 <- read_tsv("6_1000_0.tsv", show_col_types = FALSE)
+
+raw_data955 <- read_tsv("9_500_500.tsv", show_col_types = FALSE)
+raw_data972 <- read_tsv("9_750_250.tsv", show_col_types = FALSE)
+raw_data9100 <- read_tsv("9_1000_0.tsv", show_col_types = FALSE)
+```
+
+## Build a DGEList object
+```{r}
+# build a DGEList object from the rawdata count matrix
+# "group" variable, factor giving the experimental condition for each sample.
+group_condition_3 <- c("condition 1","condition 1","condition 1",
+                       "condition 2","condition 2","condition 2")
+group_condition_6 <- c("condition 1","condition 1","condition 1", 
+                       "condition 1","condition 1","condition 1",
+                       "condition 2","condition 2","condition 2",
+                       "condition 2","condition 2","condition 2")  
+group_condition_9 <- c("condition 1","condition 1","condition 1", 
+                       "condition 1","condition 1","condition 1",
+                       "condition 1","condition 1","condition 1",
+                       "condition 2","condition 2","condition 2",
+                       "condition 2","condition 2","condition 2",
+                       "condition 2","condition 2","condition 2") 
+
+gene_table_355 <- data.frame(gene = paste('g',rownames(raw_data355),sep=""),
+                             stringsAsFactors = FALSE)
+gene_table_372 <- data.frame(gene = paste('g',rownames(raw_data372),sep=""),
+                             stringsAsFactors = FALSE)
+gene_table_3100 <- data.frame(gene = paste('g',rownames(raw_data3100),sep=""),
+                             stringsAsFactors = FALSE)
+
+gene_table_655 <- data.frame(gene = paste('g',rownames(raw_data655),sep=""),
+                             stringsAsFactors = FALSE)
+gene_table_672 <- data.frame(gene = paste('g',rownames(raw_data672),sep=""),
+                             stringsAsFactors = FALSE)
+gene_table_6100 <- data.frame(gene = paste('g',rownames(raw_data6100),sep=""),
+                             stringsAsFactors = FALSE)
+
+gene_table_955 <- data.frame(gene = paste('g',rownames(raw_data955),sep=""),
+                             stringsAsFactors = FALSE)
+gene_table_972 <- data.frame(gene = paste('g',rownames(raw_data972),sep=""),
+                             stringsAsFactors = FALSE)
+gene_table_9100 <- data.frame(gene = paste('g',rownames(raw_data9100),sep=""),
+                             stringsAsFactors = FALSE)
+
+
+dge_355 <- DGEList(counts = raw_data355[, 2:7], group = group_condition_3, genes = gene_table_355)
+dge_372 <- DGEList(counts = raw_data372[, 2:7], group = group_condition_3, genes = gene_table_372)
+dge_3100 <- DGEList(counts = raw_data3100[, 2:7], group = group_condition_3, genes = gene_table_3100)
+
+dge_655 <- DGEList(counts = raw_data655[, 2:13], group = group_condition_6, genes = gene_table_655)
+dge_672 <- DGEList(counts = raw_data672[, 2:13], group = group_condition_6, genes = gene_table_672)
+dge_6100 <- DGEList(counts = raw_data6100[, 2:13], group = group_condition_6, genes = gene_table_6100)
+
+dge_955 <- DGEList(counts = raw_data955[, 2:19], group = group_condition_9, genes = gene_table_955)
+dge_972 <- DGEList(counts = raw_data972[, 2:19], group = group_condition_9, genes = gene_table_972)
+dge_9100 <- DGEList(counts = raw_data9100[, 2:19], group = group_condition_9, genes = gene_table_9100)
+```
+
+## Filtering
+Genes with very low counts across all libraries provide little evidence for differential expression. These genes should be filtered out prior to further analysis.
+
+```{r}
+keep_355 <- filterByExpr(dge_355)
+dge_355 <- dge_355[keep_355, , keep.lib.sizes=FALSE]
+keep_372 <- filterByExpr(dge_372)
+dge_372 <- dge_372[keep_372, , keep.lib.sizes=FALSE]
+keep_3100 <- filterByExpr(dge_3100)
+dge_3100 <- dge_3100[keep_3100, , keep.lib.sizes=FALSE]
+
+keep_655 <- filterByExpr(dge_655)
+dge_655 <- dge_655[keep_655, , keep.lib.sizes=FALSE]
+keep_672 <- filterByExpr(dge_672)
+dge_672 <- dge_672[keep_672, , keep.lib.sizes=FALSE]
+keep_6100 <- filterByExpr(dge_6100)
+dge_6100 <- dge_6100[keep_6100, , keep.lib.sizes=FALSE]
+
+keep_955 <- filterByExpr(dge_955)
+dge_955 <- dge_955[keep_955, , keep.lib.sizes=FALSE]
+keep_972 <- filterByExpr(dge_972)
+dge_972 <- dge_972[keep_972, , keep.lib.sizes=FALSE]
+keep_9100 <- filterByExpr(dge_9100)
+dge_9100 <- dge_9100[keep_9100, , keep.lib.sizes=FALSE]
+```
+
+## TMM normalization
+Once a DGEList has been created, we calculate between-sample (TMM) normalization factors, using the calcNormFactors function in edgeR.
+
+```{r}
+# normalization
+dge_355 <- calcNormFactors(dge_355)
+dge_355$samples
+dge_372 <- calcNormFactors(dge_372)
+dge_372$samples
+dge_3100 <- calcNormFactors(dge_3100)
+dge_3100$samples
+
+dge_655 <- calcNormFactors(dge_655)
+dge_655$samples
+dge_672 <- calcNormFactors(dge_672)
+dge_672$samples
+dge_6100 <- calcNormFactors(dge_6100)
+dge_6100$samples
+
+dge_955 <- calcNormFactors(dge_955)
+dge_955$samples
+dge_972 <- calcNormFactors(dge_972)
+dge_972$samples
+dge_9100 <- calcNormFactors(dge_9100)
+dge_9100$samples
+```
+
+## Data exploration
+An MDS plot shows the relative similarities of the samples.
+
+edgeR contains a function plotMDS, which operates on a DGEList object and generates a two-dimensional MDS representation of the samples. The default distance between two samples can be interpreted as the “typical” log fold change between the two samples, for the genes that are most different between them
+
+```{r}
+# plotMDS
+p355 <- plotMDS(dge_355, top = 1000, labels = NULL, 
+                col = as.numeric(dge_355$samples$group), cex = 0.6)
+#legend("bottomright", as.character(unique(dge$samples$group)), col = 1:2, pch = 19)
+p372 <- plotMDS(dge_372, top = 1000, labels = NULL, 
+                col = as.numeric(dge_372$samples$group), cex = 0.6)
+p3100 <- plotMDS(dge_3100, top = 1000, labels = NULL, 
+                col = as.numeric(dge_3100$samples$group), cex = 0.6)
+
+p655 <- plotMDS(dge_655, top = 1000, labels = NULL, 
+                col = as.numeric(dge_655$samples$group), cex = 0.6)
+p672 <- plotMDS(dge_672, top = 1000, labels = NULL, 
+                col = as.numeric(dge_672$samples$group), cex = 0.6)
+p6100 <- plotMDS(dge_6100, top = 1000, labels = NULL, 
+                col = as.numeric(dge_6100$samples$group), cex = 0.6)
+
+p955 <- plotMDS(dge_955, top = 1000, labels = NULL, 
+                col = as.numeric(dge_955$samples$group), cex = 0.6)
+p972 <- plotMDS(dge_972, top = 1000, labels = NULL, 
+                col = as.numeric(dge_972$samples$group), cex = 0.6)
+p9100 <- plotMDS(dge_9100, top = 1000, labels = NULL, 
+                col = as.numeric(dge_9100$samples$group), cex = 0.6)
+
+figure <- ggarrange(p355, p372, p3100,
+                    p655, p672, p6100,
+                    p955, p972, p9100,
+                    labels = c("3_500_500", "3_750_250", "3_1000_0", 
+                               "6_500_500", "6_750_250", "6_1000_0", 
+                               "9_500_500", "9_750_250", "9_1000_0"),
+                    ncol = 3, nrow = 3)
+annotate_figure(figure, top = text_grob("A two-dimensional MDS representation of the samples"))
+annotate_figure
+```
+
+## Differential expression analysis
+Next we will show how to perform differential expression analysis with edgeR. Recall that we have a DGEList (dge), containing all the necessary information:
+
+### The classic edgeR pipeline: pairwise comparisons between two or more groups
+
+- Estimating dispersions
+
+- Testing for DE genes
+
+For all the Next-Gen squencing data analyses we consider here, people are most interested in finding differentially expressed genes/tags between two (or more) groups. Once negative binomial models are fitted and dispersion estimates are obtained, we can proceed with testing procedures for determining differential expression using the exact test.
+
+The exact test is based on the qCML methods. Knowing the conditional distribution for the sum of counts in a group, we can compute exact p-values by summing over all sums of counts that have a probability less than the probability under the null hypothesis of the observed sum of counts. The exact test for the negative binomial distribution has strong parallels with Fisher’s exact test.
+
+As we dicussed in the previous section, the exact test is only applicable to experiments with a single factor. The testing can be done by using the function exactTest(), and the function allows both common dispersion and tagwise dispersion approaches.
+
+```{r}
+# Estimating dispersions and testing for DE genes
+
+# _3
+st_time_355 = Sys.time()
+dge_355 <- estimateDisp(dge_355)
+et_355 <- exactTest(dge_355)
+end_time_355 = Sys.time()
+edgeR_time_355 <- end_time_355 - st_time_355
+
+st_time_372 = Sys.time()
+dge_372 <- estimateDisp(dge_372)
+et_372 <- exactTest(dge_372)
+end_time_372 = Sys.time()
+edgeR_time_372 <- end_time_372 - st_time_372
+
+st_time_3100 = Sys.time()
+dge_3100 <- estimateDisp(dge_3100)
+et_3100 <- exactTest(dge_3100)
+end_time_3100 = Sys.time()
+edgeR_time_3100 <- end_time_3100 - st_time_3100
+
+# _6
+st_time_655 = Sys.time()
+dge_655 <- estimateDisp(dge_655)
+et_655 <- exactTest(dge_655)
+end_time_655 = Sys.time()
+edgeR_time_655 <- end_time_655 - st_time_655
+
+st_time_672 = Sys.time()
+dge_672 <- estimateDisp(dge_672)
+et_672 <- exactTest(dge_672)
+end_time_672 = Sys.time()
+edgeR_time_672 <- end_time_672 - st_time_672
+
+st_time_6100 = Sys.time()
+dge_6100 <- estimateDisp(dge_6100)
+et_6100 <- exactTest(dge_6100)
+end_time_6100 = Sys.time()
+edgeR_time_6100 <- end_time_6100 - st_time_6100
+
+# _9
+st_time_955 = Sys.time()
+dge_955 <- estimateDisp(dge_955)
+et_955 <- exactTest(dge_955)
+end_time_955 = Sys.time()
+edgeR_time_955 <- end_time_955 - st_time_955
+
+st_time_972 = Sys.time()
+dge_972 <- estimateDisp(dge_972)
+et_972 <- exactTest(dge_972)
+end_time_972 = Sys.time()
+edgeR_time_972 <- end_time_972 - st_time_972
+
+st_time_9100 = Sys.time()
+dge_9100 <- estimateDisp(dge_9100)
+et_9100 <- exactTest(dge_9100)
+end_time_9100 = Sys.time()
+edgeR_time_9100 <- end_time_9100 - st_time_9100
+
+# plot BCV
+plotBCV(dge_355)
+plotBCV(dge_372)
+plotBCV(dge_3100)
+
+plotBCV(dge_655)
+plotBCV(dge_672)
+plotBCV(dge_6100)
+
+plotBCV(dge_955)
+plotBCV(dge_972)
+plotBCV(dge_9100)
+```
+
+```{r}
+# topTags()
+df_export_355 <- topTags(et_355, n = 1000, p.value = 0.05)
+df_export_372 <- topTags(et_372, n = 1000, p.value = 0.05)
+df_export_3100 <- topTags(et_3100, n = 1000, p.value = 0.05)
+
+df_export_655 <- topTags(et_655, n = 1000, p.value = 0.05)
+df_export_672 <- topTags(et_672, n = 1000, p.value = 0.05)
+df_export_6100 <- topTags(et_6100, n = 1000, p.value = 0.05)
+
+df_export_955 <- topTags(et_955, n = 1000, p.value = 0.05)
+df_export_972 <- topTags(et_972, n = 1000, p.value = 0.05)
+df_export_9100 <- topTags(et_9100, n = 1000, p.value = 0.05)
+
+# export .csv files
+write.csv(df_export_355,"V2_EdgeR_3_500_500.csv", row.names = FALSE)
+write.csv(df_export_372,"V2_EdgeR_3_750_250.csv", row.names = FALSE)
+write.csv(df_export_3100,"V2_EdgeR_3_1000_0.csv", row.names = FALSE)
+
+write.csv(df_export_655,"V2_EdgeR_6_500_500.csv", row.names = FALSE)
+write.csv(df_export_672,"V2_EdgeR_6_750_250.csv", row.names = FALSE)
+write.csv(df_export_6100,"V2_EdgeR_6_1000_0.csv", row.names = FALSE)
+
+write.csv(df_export_955,"V2_EdgeR_9_500_500.csv", row.names = FALSE)
+write.csv(df_export_972,"V2_EdgeR_9_750_250.csv", row.names = FALSE)
+write.csv(df_export_9100,"V2_EdgeR_9_1000_0.csv", row.names = FALSE)
+
+# combind table
+et_355$table <- cbind(et_355$genes,et_355$table)
+et_372$table <- cbind(et_372$genes,et_372$table)
+et_3100$table <- cbind(et_3100$genes,et_3100$table)
+
+et_655$table <- cbind(et_655$genes,et_655$table)
+et_672$table <- cbind(et_672$genes,et_672$table)
+et_6100$table <- cbind(et_6100$genes,et_6100$table)
+
+et_955$table <- cbind(et_955$genes,et_955$table)
+et_972$table <- cbind(et_972$genes,et_972$table)
+et_9100$table <- cbind(et_9100$genes,et_9100$table)
+```
+
+The total number of differentially expressed genes at 5% FDR is given by:
+```{r}
+# default: decideTests(object, adjust.method="BH", p.value = 0.05, lfc = 0, ...)
+result_decideTest_355 <- decideTests(et_355, lfc = 0.58)
+result_decideTest_372 <- decideTests(et_372, lfc = 0.58)
+result_decideTest_3100 <- decideTests(et_3100, lfc = 0.58)
+
+result_decideTest_655 <- decideTests(et_655, lfc = 0.58)
+result_decideTest_672 <- decideTests(et_672, lfc = 0.58)
+result_decideTest_6100 <- decideTests(et_6100, lfc = 0.58)
+
+result_decideTest_955 <- decideTests(et_955, lfc = 0.58)
+result_decideTest_972 <- decideTests(et_972, lfc = 0.58)
+result_decideTest_9100 <- decideTests(et_9100, lfc = 0.58)
+
+#summary(result_decideTest_655)
+```
+
+```{r}
+# add the new column, which is the output of decideTest, into genes dataframe
+et_355$table <- cbind(et_355$table,data.frame(result_decideTest_355@.Data))
+# add the diffexpressed collumn
+et_355$table$diffexpressed <- "NotSig"
+# if condition.2.condition.1 == -1 set as "Down"
+et_355$table$diffexpressed[et_355$table$condition.2.condition.1 == -1] <- "Down"
+# if condition.2.condition.1 == 1 set as "Up" 
+et_355$table$diffexpressed[et_355$table$condition.2.condition.1 == 1] <- "Up"
+# if condition.2.condition.1 == 0 set as "NotSig" 
+et_355$table$diffexpressed[et_355$table$condition.2.condition.1 == 0] <- "NotSig"
+#head(et$table)
+
+et_372$table <- cbind(et_372$table,data.frame(result_decideTest_372@.Data))
+et_372$table$diffexpressed <- "NotSig"
+et_372$table$diffexpressed[et_372$table$condition.2.condition.1 == -1] <- "Down"
+et_372$table$diffexpressed[et_372$table$condition.2.condition.1 == 1] <- "Up"
+et_372$table$diffexpressed[et_372$table$condition.2.condition.1 == 0] <- "NotSig"
+
+et_3100$table <- cbind(et_3100$table,data.frame(result_decideTest_3100@.Data))
+et_3100$table$diffexpressed <- "NotSig"
+et_3100$table$diffexpressed[et_3100$table$condition.2.condition.1 == -1] <- "Down"
+et_3100$table$diffexpressed[et_3100$table$condition.2.condition.1 == 1] <- "Up"
+et_3100$table$diffexpressed[et_3100$table$condition.2.condition.1 == 0] <- "NotSig"
+
+# _6
+et_655$table <- cbind(et_655$table,data.frame(result_decideTest_655@.Data))
+et_655$table$diffexpressed <- "NotSig"
+et_655$table$diffexpressed[et_655$table$condition.2.condition.1 == -1] <- "Down"
+et_655$table$diffexpressed[et_655$table$condition.2.condition.1 == 1] <- "Up"
+et_655$table$diffexpressed[et_655$table$condition.2.condition.1 == 0] <- "NotSig"
+
+et_672$table <- cbind(et_672$table,data.frame(result_decideTest_672@.Data))
+et_672$table$diffexpressed <- "NotSig"
+et_672$table$diffexpressed[et_672$table$condition.2.condition.1 == -1] <- "Down"
+et_672$table$diffexpressed[et_672$table$condition.2.condition.1 == 1] <- "Up"
+et_672$table$diffexpressed[et_672$table$condition.2.condition.1 == 0] <- "NotSig"
+
+et_6100$table <- cbind(et_6100$table,data.frame(result_decideTest_6100@.Data))
+et_6100$table$diffexpressed <- "NotSig"
+et_6100$table$diffexpressed[et_6100$table$condition.2.condition.1 == -1] <- "Down"
+et_6100$table$diffexpressed[et_6100$table$condition.2.condition.1 == 1] <- "Up"
+et_6100$table$diffexpressed[et_6100$table$condition.2.condition.1 == 0] <- "NotSig"
+
+# _9
+et_955$table <- cbind(et_955$table,data.frame(result_decideTest_955@.Data))
+et_955$table$diffexpressed <- "NotSig"
+et_955$table$diffexpressed[et_955$table$condition.2.condition.1 == -1] <- "Down"
+et_955$table$diffexpressed[et_955$table$condition.2.condition.1 == 1] <- "Up"
+et_955$table$diffexpressed[et_955$table$condition.2.condition.1 == 0] <- "NotSig"
+
+et_972$table <- cbind(et_972$table,data.frame(result_decideTest_972@.Data))
+et_972$table$diffexpressed <- "NotSig"
+et_972$table$diffexpressed[et_972$table$condition.2.condition.1 == -1] <- "Down"
+et_972$table$diffexpressed[et_972$table$condition.2.condition.1 == 1] <- "Up"
+et_972$table$diffexpressed[et_972$table$condition.2.condition.1 == 0] <- "NotSig"
+
+et_9100$table <- cbind(et_9100$table,data.frame(result_decideTest_9100@.Data))
+et_9100$table$diffexpressed <- "NotSig"
+et_9100$table$diffexpressed[et_9100$table$condition.2.condition.1 == -1] <- "Down"
+et_9100$table$diffexpressed[et_9100$table$condition.2.condition.1 == 1] <- "Up"
+et_9100$table$diffexpressed[et_9100$table$condition.2.condition.1 == 0] <- "NotSig"
+```
+
+Plot log-fold change against log-counts per million, with DE genes highlighted:
+```{r}
+#plotMD(et)
+#abline(h=c(-1, 1), col="blue")
+```
+
+The blue lines indicate 2-fold changes.
+
+### Volcano plot
+```{r}
+arrange_et_355 <- et_355
+arrange_et_372 <- et_372
+arrange_et_3100 <- et_3100
+
+arrange_et_655 <- et_655
+arrange_et_672 <- et_672
+arrange_et_6100 <- et_6100
+
+arrange_et_955 <- et_955
+arrange_et_972 <- et_972
+arrange_et_9100 <- et_9100
+
+# arrange the et by using p-value (ascending order). Actually, we identify the differential expression genes by using FDR or adjusted p-value.
+arrange_et_355$table <- arrange_et_355$table %>% arrange(PValue) %>% mutate(genelabels = "")
+arrange_et_355$table$genelabels[1:10] <- arrange_et_355$table$gene[1:10]
+arrange_et_372$table <- arrange_et_372$table %>% arrange(PValue) %>% mutate(genelabels = "")
+arrange_et_372$table$genelabels[1:10] <- arrange_et_372$table$gene[1:10]
+arrange_et_3100$table <- arrange_et_3100$table %>% arrange(PValue) %>% mutate(genelabels = "")
+arrange_et_3100$table$genelabels[1:10] <- arrange_et_3100$table$gene[1:10]
+
+arrange_et_655$table <- arrange_et_655$table %>% arrange(PValue) %>% mutate(genelabels = "")
+arrange_et_655$table$genelabels[1:10] <- arrange_et_655$table$gene[1:10]
+arrange_et_672$table <- arrange_et_672$table %>% arrange(PValue) %>% mutate(genelabels = "")
+arrange_et_672$table$genelabels[1:10] <- arrange_et_672$table$gene[1:10]
+arrange_et_6100$table <- arrange_et_6100$table %>% arrange(PValue) %>% mutate(genelabels = "")
+arrange_et_6100$table$genelabels[1:10] <- arrange_et_6100$table$gene[1:10]
+
+arrange_et_955$table <- arrange_et_955$table %>% arrange(PValue) %>% mutate(genelabels = "")
+arrange_et_955$table$genelabels[1:10] <- arrange_et_955$table$gene[1:10]
+arrange_et_972$table <- arrange_et_972$table %>% arrange(PValue) %>% mutate(genelabels = "")
+arrange_et_972$table$genelabels[1:10] <- arrange_et_972$table$gene[1:10]
+arrange_et_9100$table <- arrange_et_9100$table %>% arrange(PValue) %>% mutate(genelabels = "")
+arrange_et_9100$table$genelabels[1:10] <- arrange_et_9100$table$gene[1:10]
+```
+
+```{r}
+# _3
+volca_355 <- ggplot(data=arrange_et_355$table, aes(x=arrange_et_355$table$logFC, 
+                          y=-log10(arrange_et_355$table$PValue))) + 
+  geom_point(aes(col=diffexpressed)) + 
+  theme_minimal() + 
+  geom_text_repel(aes(label=genelabels), max.overlaps = getOption("ggrepel.max.overlaps", default = 10)) + 
+  scale_color_manual(values=c("blue", "black", "red")) +
+  geom_vline(xintercept=c(0, 0), col="red") +
+  geom_hline(yintercept=-log10(1.377256*10^-3), col="red") +
+  ggtitle("3_500_500 differential expression") +
+  xlab("log2 fold change") +
+  ylab("-log10 p-value")
+
+volca_372 <- ggplot(data=arrange_et_372$table, aes(x=arrange_et_372$table$logFC, 
+                          y=-log10(arrange_et_372$table$PValue))) + 
+  geom_point(aes(col=diffexpressed)) + 
+  theme_minimal() + 
+  geom_text_repel(aes(label=genelabels), max.overlaps = getOption("ggrepel.max.overlaps", default = 10)) + 
+  scale_color_manual(values=c("blue", "black", "red")) +
+  geom_vline(xintercept=c(0, 0), col="red") +
+  geom_hline(yintercept=-log10(1.498174*10^-3), col="red") +
+  ggtitle("3_750_250 differential expression") +
+  xlab("log2 fold change") +
+  ylab("-log10 p-value")
+
+volca_3100 <- ggplot(data=arrange_et_3100$table, aes(x=arrange_et_3100$table$logFC, 
+                          y=-log10(arrange_et_3100$table$PValue))) + 
+  geom_point(aes(col=diffexpressed)) + 
+  theme_minimal() + 
+  geom_text_repel(aes(label=genelabels), max.overlaps = getOption("ggrepel.max.overlaps", default = 10)) + 
+  scale_color_manual(values=c("blue", "black", "red")) +
+  geom_vline(xintercept=c(0, 0), col="red") +
+  geom_hline(yintercept=-log10(1.590792*10^-3), col="red") +
+  ggtitle("3_1000_0 differential expression") +
+  xlab("log2 fold change") +
+  ylab("-log10 p-value")
+
+# _6
+volca_655 <- ggplot(data=arrange_et_655$table, aes(x=arrange_et_655$table$logFC, 
+                          y=-log10(arrange_et_655$table$PValue))) + 
+  geom_point(aes(col=diffexpressed)) + 
+  theme_minimal() + 
+  geom_text_repel(aes(label=genelabels), max.overlaps = getOption("ggrepel.max.overlaps", default = 10)) + 
+  scale_color_manual(values=c("blue", "black", "red")) +
+  geom_vline(xintercept=c(0, 0), col="red") +
+  geom_hline(yintercept=-log10(2.777723*10^-3), col="red") +
+  ggtitle("6_500_500 differential expression") +
+  xlab("log2 fold change") +
+  ylab("-log10 p-value")
+
+volca_672 <- ggplot(data=arrange_et_672$table, aes(x=arrange_et_672$table$logFC, 
+                          y=-log10(arrange_et_672$table$PValue))) + 
+  geom_point(aes(col=diffexpressed)) + 
+  theme_minimal() + 
+  geom_text_repel(aes(label=genelabels), max.overlaps = getOption("ggrepel.max.overlaps", default = 10)) + 
+  scale_color_manual(values=c("blue", "black", "red")) +
+  geom_vline(xintercept=c(0, 0), col="red") +
+  geom_hline(yintercept=-log10(2.953149*10^-3), col="red") +
+  ggtitle("6_750_250 differential expression") +
+  xlab("log2 fold change") +
+  ylab("-log10 p-value")
+
+volca_6100 <- ggplot(data=arrange_et_6100$table, aes(x=arrange_et_6100$table$logFC, 
+                          y=-log10(arrange_et_6100$table$PValue))) + 
+  geom_point(aes(col=diffexpressed)) + 
+  theme_minimal() + 
+  geom_text_repel(aes(label=genelabels), max.overlaps = getOption("ggrepel.max.overlaps", default = 10)) + 
+  scale_color_manual(values=c("blue", "black", "red")) +
+  geom_vline(xintercept=c(0, 0), col="red") +
+  geom_hline(yintercept=-log10(2.922512*10^-3), col="red") +
+  ggtitle("6_1000_0 differential expression") +
+  xlab("log2 fold change") +
+  ylab("-log10 p-value")
+
+#_9
+volca_955 <- ggplot(data=arrange_et_955$table, aes(x=arrange_et_955$table$logFC, 
+                          y=-log10(arrange_et_955$table$PValue))) + 
+  geom_point(aes(col=diffexpressed)) + 
+  theme_minimal() + 
+  geom_text_repel(aes(label=genelabels), max.overlaps = getOption("ggrepel.max.overlaps", default = 10)) + 
+  scale_color_manual(values=c("blue", "black", "red")) +
+  geom_vline(xintercept=c(0, 0), col="red") +
+  geom_hline(yintercept=-log10(3.557585*10^-3), col="red") +
+  ggtitle("9_500_500 differential expression") +
+  xlab("log2 fold change") +
+  ylab("-log10 p-value")
+
+volca_972 <- ggplot(data=arrange_et_972$table, aes(x=arrange_et_972$table$logFC, 
+                          y=-log10(arrange_et_972$table$PValue))) + 
+  geom_point(aes(col=diffexpressed)) + 
+  theme_minimal() + 
+  geom_text_repel(aes(label=genelabels), max.overlaps = getOption("ggrepel.max.overlaps", default = 10)) + 
+  scale_color_manual(values=c("blue", "black", "red")) +
+  geom_vline(xintercept=c(0, 0), col="red") +
+  geom_hline(yintercept=-log10(3.600677*10^-3), col="red") +
+  ggtitle("9_750_250 differential expression") +
+  xlab("log2 fold change") +
+  ylab("-log10 p-value")
+
+volca_9100 <- ggplot(data=arrange_et_9100$table, aes(x=arrange_et_9100$table$logFC, 
+                          y=-log10(arrange_et_9100$table$PValue))) + 
+  geom_point(aes(col=diffexpressed)) + 
+  theme_minimal() + 
+  geom_text_repel(aes(label=genelabels), max.overlaps = getOption("ggrepel.max.overlaps", default = 10)) + 
+  scale_color_manual(values=c("blue", "black", "red")) +
+  geom_vline(xintercept=c(0, 0), col="red") +
+  geom_hline(yintercept=-log10(3.322350*10^-3), col="red") +
+  ggtitle("9_1000_0 differential expression") +
+  xlab("log2 fold change") +
+  ylab("-log10 p-value")
+
+figure2 <- ggarrange(volca_355, volca_372, volca_3100,
+                    volca_655, volca_672, volca_6100,
+                    volca_955, volca_972, volca_9100,
+                    labels = c("A", "B", "C", 
+                               "D", "E", "F",
+                               "G", "H", "I"),
+                    ncol = 3, nrow = 3)
+#figure2
+```
+
+This volcano plot represents differential expression of genes. On the x-axis we typically find the fold change and on the y-axis the p-value.
+
+## Computational time EdgeR
+```{r}
+# present computational time
+print(paste0("3_500_500 computational time: ", edgeR_time_355))
+print(paste0("3_750_250 computational time: ", edgeR_time_372))
+print(paste0("3_1000_0 computational time: ", edgeR_time_3100))
+
+print(paste0("6_500_500 computational time: ", edgeR_time_655))
+print(paste0("6_750_250 computational time: ", edgeR_time_672))
+print(paste0("6_1000_0 computational time: ", edgeR_time_6100))
+
+print(paste0("9_500_500 computational time: ", edgeR_time_955))
+print(paste0("9_750_250 computational time: ", edgeR_time_972))
+print(paste0("9_1000_0 computational time: ", edgeR_time_9100))
+```
+
+## Comparing the results with meta files
+
+```{r}
+meta_data355 <- read_tsv("3_500_500_meta.tsv", show_col_types = FALSE)
+meta_data372 <- read_tsv("3_750_250_meta.tsv", show_col_types = FALSE)
+meta_data3100 <- read_tsv("3_1000_0_meta.tsv", show_col_types = FALSE)
+
+meta_data655 <- read_tsv("6_500_500_meta.tsv", show_col_types = FALSE)
+meta_data672 <- read_tsv("6_750_250_meta.tsv", show_col_types = FALSE)
+meta_data6100 <- read_tsv("6_1000_0_meta.tsv", show_col_types = FALSE)
+
+meta_data955 <- read_tsv("9_500_500_meta.tsv", show_col_types = FALSE)
+meta_data972 <- read_tsv("9_750_250_meta.tsv", show_col_types = FALSE)
+meta_data9100 <- read_tsv("9_1000_0_meta.tsv", show_col_types = FALSE)
+```
+
+```{r}
+# upregulated
+# _3
+meta355_up <- as.data.frame(meta_data355[meta_data355$upregulation == 1, 1])
+edgeR_355_up <- as.data.frame(et_355$table[et_355$table$condition.2.condition.1 == 1, 1])
+meta372_up <- as.data.frame(meta_data372[meta_data372$upregulation == 1, 1])
+edgeR_372_up <- as.data.frame(et_372$table[et_372$table$condition.2.condition.1 == 1, 1])
+meta3100_up <- as.data.frame(meta_data3100[meta_data3100$upregulation == 1, 1])
+edgeR_3100_up <- as.data.frame(et_3100$table[et_3100$table$condition.2.condition.1 == 1, 1])
+
+# _6
+meta655_up <- as.data.frame(meta_data655[meta_data655$upregulation == 1, 1])
+edgeR_655_up <- as.data.frame(et_655$table[et_655$table$condition.2.condition.1 == 1, 1])
+meta672_up <- as.data.frame(meta_data672[meta_data672$upregulation == 1, 1])
+edgeR_672_up <- as.data.frame(et_672$table[et_672$table$condition.2.condition.1 == 1, 1])
+meta6100_up <- as.data.frame(meta_data6100[meta_data6100$upregulation == 1, 1])
+edgeR_6100_up <- as.data.frame(et_6100$table[et_6100$table$condition.2.condition.1 == 1, 1])
+
+# _9
+meta955_up <- as.data.frame(meta_data955[meta_data955$upregulation == 1, 1])
+edgeR_955_up <- as.data.frame(et_955$table[et_955$table$condition.2.condition.1 == 1, 1])
+meta972_up <- as.data.frame(meta_data972[meta_data972$upregulation == 1, 1])
+edgeR_972_up <- as.data.frame(et_972$table[et_972$table$condition.2.condition.1 == 1, 1])
+meta9100_up <- as.data.frame(meta_data9100[meta_data9100$upregulation == 1, 1])
+edgeR_9100_up <- as.data.frame(et_9100$table[et_9100$table$condition.2.condition.1 == 1, 1])
+
+# change column name
+# _3
+colnames(meta355_up)[1] <- "genes"
+colnames(edgeR_355_up)[1] <- "genes"
+colnames(meta372_up)[1] <- "genes"
+colnames(edgeR_372_up)[1] <- "genes"
+colnames(meta3100_up)[1] <- "genes"
+colnames(edgeR_3100_up)[1] <- "genes"
+
+# _6
+colnames(meta655_up)[1] <- "genes"
+colnames(edgeR_655_up)[1] <- "genes"
+colnames(meta672_up)[1] <- "genes"
+colnames(edgeR_672_up)[1] <- "genes"
+colnames(meta6100_up)[1] <- "genes"
+colnames(edgeR_6100_up)[1] <- "genes"
+
+# _9
+colnames(meta955_up)[1] <- "genes"
+colnames(edgeR_955_up)[1] <- "genes"
+colnames(meta972_up)[1] <- "genes"
+colnames(edgeR_972_up)[1] <- "genes"
+colnames(meta9100_up)[1] <- "genes"
+colnames(edgeR_9100_up)[1] <- "genes"
+
+# find intersection genes
+# _3
+intersect_355_up <- intersect(meta355_up$genes, edgeR_355_up$genes)
+intersect_372_up <- intersect(meta372_up$genes, edgeR_372_up$genes)
+intersect_3100_up <- intersect(meta3100_up$genes, edgeR_3100_up$genes)
+
+# _6
+intersect_655_up <- intersect(meta655_up$genes, edgeR_655_up$genes)
+intersect_672_up <- intersect(meta672_up$genes, edgeR_672_up$genes)
+intersect_6100_up <- intersect(meta6100_up$genes, edgeR_6100_up$genes)
+
+# _9
+intersect_955_up <- intersect(meta955_up$genes, edgeR_955_up$genes)
+intersect_972_up <- intersect(meta972_up$genes, edgeR_972_up$genes)
+intersect_9100_up <- intersect(meta9100_up$genes, edgeR_9100_up$genes)
+```
+
+```{r}
+# down-regulated
+# _3
+meta355_down <- as.data.frame(meta_data355[meta_data355$downregulation == 1, 1])
+edgeR_355_down <- as.data.frame(et_355$table[et_355$table$condition.2.condition.1 == -1, 1])
+meta372_down <- as.data.frame(meta_data372[meta_data372$downregulation == 1, 1])
+edgeR_372_down <- as.data.frame(et_372$table[et_372$table$condition.2.condition.1 == -1, 1])
+meta3100_down <- as.data.frame(meta_data3100[meta_data3100$downregulation == 1, 1])
+edgeR_3100_down <- as.data.frame(et_3100$table[et_3100$table$condition.2.condition.1 == -1, 1])
+
+# _6
+meta655_down <- as.data.frame(meta_data655[meta_data655$downregulation == 1, 1])
+edgeR_655_down <- as.data.frame(et_655$table[et_655$table$condition.2.condition.1 == -1, 1])
+meta672_down <- as.data.frame(meta_data672[meta_data672$downregulation == 1, 1])
+edgeR_672_down <- as.data.frame(et_672$table[et_672$table$condition.2.condition.1 == -1, 1])
+meta6100_down <- as.data.frame(meta_data6100[meta_data6100$downregulation == 1, 1])
+edgeR_6100_down <- as.data.frame(et_6100$table[et_6100$table$condition.2.condition.1 == -1, 1])
+
+# _9
+meta955_down <- as.data.frame(meta_data955[meta_data955$downregulation == 1, 1])
+edgeR_955_down <- as.data.frame(et_955$table[et_955$table$condition.2.condition.1 == -1, 1])
+meta972_down <- as.data.frame(meta_data972[meta_data972$downregulation == 1, 1])
+edgeR_972_down <- as.data.frame(et_972$table[et_972$table$condition.2.condition.1 == -1, 1])
+meta9100_down <- as.data.frame(meta_data9100[meta_data9100$downregulation == 1, 1])
+edgeR_9100_down <- as.data.frame(et_9100$table[et_9100$table$condition.2.condition.1 == -1, 1])
+
+# change column name
+# _3
+colnames(meta355_down)[1] <- "genes"
+colnames(edgeR_355_down)[1] <- "genes"
+colnames(meta372_down)[1] <- "genes"
+colnames(edgeR_372_down)[1] <- "genes"
+colnames(meta3100_down)[1] <- "genes"
+colnames(edgeR_3100_down)[1] <- "genes"
+
+# _6
+colnames(meta655_down)[1] <- "genes"
+colnames(edgeR_655_down)[1] <- "genes"
+colnames(meta672_down)[1] <- "genes"
+colnames(edgeR_672_down)[1] <- "genes"
+colnames(meta6100_down)[1] <- "genes"
+colnames(edgeR_6100_down)[1] <- "genes"
+
+# _9
+colnames(meta955_down)[1] <- "genes"
+colnames(edgeR_955_down)[1] <- "genes"
+colnames(meta972_down)[1] <- "genes"
+colnames(edgeR_972_down)[1] <- "genes"
+colnames(meta9100_down)[1] <- "genes"
+colnames(edgeR_9100_down)[1] <- "genes"
+
+# find intersection genes
+# _3
+intersect_355_down <- intersect(meta355_down$genes, edgeR_355_down$genes)
+intersect_372_down <- intersect(meta372_down$genes, edgeR_372_down$genes)
+intersect_3100_down <- intersect(meta3100_down$genes, edgeR_3100_down$genes)
+
+# _6
+intersect_655_down <- intersect(meta655_down$genes, edgeR_655_down$genes)
+intersect_672_down <- intersect(meta672_down$genes, edgeR_672_down$genes)
+intersect_6100_down <- intersect(meta6100_down$genes, edgeR_6100_down$genes)
+
+# _9
+intersect_955_down <- intersect(meta955_down$genes, edgeR_955_down$genes)
+intersect_972_down <- intersect(meta972_down$genes, edgeR_972_down$genes)
+intersect_9100_down <- intersect(meta9100_down$genes, edgeR_9100_down$genes)
+```
+
+```{r}
+# DE
+# _3
+meta355_DE <- as.data.frame(meta_data355[meta_data355$differential.expression == 1, 1])
+edgeR_355_DE <- as.data.frame(et_355$table[et_355$table$condition.2.condition.1 != 0, 1])
+meta372_DE <- as.data.frame(meta_data372[meta_data372$differential.expression == 1, 1])
+edgeR_372_DE <- as.data.frame(et_372$table[et_372$table$condition.2.condition.1 != 0, 1])
+meta3100_DE <- as.data.frame(meta_data3100[meta_data3100$differential.expression == 1, 1])
+edgeR_3100_DE <- as.data.frame(et_3100$table[et_3100$table$condition.2.condition.1 != 0, 1])
+
+# _6
+meta655_DE <- as.data.frame(meta_data655[meta_data655$differential.expression == 1, 1])
+edgeR_655_DE <- as.data.frame(et_655$table[et_655$table$condition.2.condition.1 != 0, 1])
+meta672_DE <- as.data.frame(meta_data672[meta_data672$differential.expression == 1, 1])
+edgeR_672_DE <- as.data.frame(et_672$table[et_672$table$condition.2.condition.1 != 0, 1])
+meta6100_DE <- as.data.frame(meta_data6100[meta_data6100$differential.expression == 1, 1])
+edgeR_6100_DE <- as.data.frame(et_6100$table[et_6100$table$condition.2.condition.1 != 0, 1])
+
+# _9
+meta955_DE <- as.data.frame(meta_data955[meta_data955$differential.expression == 1, 1])
+edgeR_955_DE <- as.data.frame(et_955$table[et_955$table$condition.2.condition.1 != 0, 1])
+meta972_DE <- as.data.frame(meta_data972[meta_data972$differential.expression == 1, 1])
+edgeR_972_DE <- as.data.frame(et_972$table[et_972$table$condition.2.condition.1 != 0, 1])
+meta9100_DE <- as.data.frame(meta_data9100[meta_data9100$differential.expression == 1, 1])
+edgeR_9100_DE <- as.data.frame(et_9100$table[et_9100$table$condition.2.condition.1 != 0, 1])
+
+# change column name
+# _3
+colnames(meta355_DE)[1] <- "genes"
+colnames(edgeR_355_DE)[1] <- "genes"
+colnames(meta372_DE)[1] <- "genes"
+colnames(edgeR_372_DE)[1] <- "genes"
+colnames(meta3100_DE)[1] <- "genes"
+colnames(edgeR_3100_DE)[1] <- "genes"
+
+# _6
+colnames(meta655_DE)[1] <- "genes"
+colnames(edgeR_655_DE)[1] <- "genes"
+colnames(meta672_DE)[1] <- "genes"
+colnames(edgeR_672_DE)[1] <- "genes"
+colnames(meta6100_DE)[1] <- "genes"
+colnames(edgeR_6100_DE)[1] <- "genes"
+
+# _9
+colnames(meta955_DE)[1] <- "genes"
+colnames(edgeR_955_DE)[1] <- "genes"
+colnames(meta972_DE)[1] <- "genes"
+colnames(edgeR_972_DE)[1] <- "genes"
+colnames(meta9100_DE)[1] <- "genes"
+colnames(edgeR_9100_DE)[1] <- "genes"
+
+# find intersection genes
+# _3
+intersect_355_DE <- intersect(meta355_DE$genes, edgeR_355_DE$genes)
+intersect_372_DE <- intersect(meta372_DE$genes, edgeR_372_DE$genes)
+intersect_3100_DE <- intersect(meta3100_DE$genes, edgeR_3100_DE$genes)
+
+# _6
+intersect_655_DE <- intersect(meta655_DE$genes, edgeR_655_DE$genes)
+intersect_672_DE <- intersect(meta672_DE$genes, edgeR_672_DE$genes)
+intersect_6100_DE <- intersect(meta6100_DE$genes, edgeR_6100_DE$genes)
+
+# _9
+intersect_955_DE <- intersect(meta955_DE$genes, edgeR_955_DE$genes)
+intersect_972_DE <- intersect(meta972_DE$genes, edgeR_972_DE$genes)
+intersect_9100_DE <- intersect(meta9100_DE$genes, edgeR_9100_DE$genes)
+```
+
+```{r}
+# acc_up
+acc_355_up <- length(intersect_355_up)/nrow(meta355_up)
+acc_372_up <- length(intersect_372_up)/nrow(meta372_up)
+acc_3100_up <- length(intersect_3100_up)/nrow(meta3100_up)
+
+acc_655_up <- length(intersect_655_up)/nrow(meta655_up)
+acc_672_up <- length(intersect_672_up)/nrow(meta672_up)
+acc_6100_up <- length(intersect_6100_up)/nrow(meta6100_up)
+
+acc_955_up <- length(intersect_955_up)/nrow(meta955_up)
+acc_972_up <- length(intersect_972_up)/nrow(meta972_up)
+acc_9100_up <- length(intersect_9100_up)/nrow(meta9100_up)
+
+# acc_down
+acc_355_down <- length(intersect_355_down)/nrow(meta355_down)
+acc_372_down <- length(intersect_372_down)/nrow(meta372_down)
+acc_3100_down <- length(intersect_3100_down)/nrow(meta3100_down)
+
+acc_655_down <- length(intersect_655_down)/nrow(meta655_down)
+acc_672_down <- length(intersect_672_down)/nrow(meta672_down)
+acc_6100_down <- length(intersect_6100_down)/nrow(meta6100_down)
+
+acc_955_down <- length(intersect_955_down)/nrow(meta955_down)
+acc_972_down <- length(intersect_972_down)/nrow(meta972_down)
+acc_9100_down <- length(intersect_9100_down)/nrow(meta9100_down)
+
+# acc_DE (up or down)
+acc_355_DE <- length(intersect_355_DE)/nrow(meta355_DE)
+acc_372_DE <- length(intersect_372_DE)/nrow(meta372_DE)
+acc_3100_DE <- length(intersect_3100_DE)/nrow(meta3100_DE)
+
+acc_655_DE <- length(intersect_655_DE)/nrow(meta655_DE)
+acc_672_DE <- length(intersect_672_DE)/nrow(meta672_DE)
+acc_6100_DE <- length(intersect_6100_DE)/nrow(meta6100_DE)
+
+acc_955_DE <- length(intersect_955_DE)/nrow(meta955_DE)
+acc_972_DE <- length(intersect_972_DE)/nrow(meta972_DE)
+acc_9100_DE <- length(intersect_9100_DE)/nrow(meta9100_DE)
+```
+
+## Create data frame of EdgeR
+```{r}
+size_sample <- c("3_500_500", "3_750_250", "3_1000_0", 
+                 "6_500_500", "6_750_250", "6_1000_0", 
+                 "9_500_500", "9_750_250", "9_1000_0")
+num_intersec_up <- c(length(intersect_355_up), length(intersect_372_up), length(intersect_3100_up),
+                  length(intersect_655_up), length(intersect_672_up), length(intersect_6100_up),
+                  length(intersect_955_up), length(intersect_972_up), length(intersect_9100_up))
+num_meta_up <- c(nrow(meta355_up), nrow(meta372_up), nrow(meta3100_up),
+                 nrow(meta655_up), nrow(meta672_up), nrow(meta6100_up),
+                 nrow(meta955_up), nrow(meta972_up), nrow(meta9100_up))
+
+num_intersec_down <- c(length(intersect_355_down), length(intersect_372_down), length(intersect_3100_down),
+                  length(intersect_655_down), length(intersect_672_down), length(intersect_6100_down),
+                  length(intersect_955_down), length(intersect_972_down), length(intersect_9100_down))
+num_meta_down <- c(nrow(meta355_down), nrow(meta372_down), nrow(meta3100_down),
+                 nrow(meta655_down), nrow(meta672_down), nrow(meta6100_down),
+                 nrow(meta955_down), nrow(meta972_down), nrow(meta9100_down))
+
+num_intersec_DE <- c(length(intersect_355_DE), length(intersect_372_DE), length(intersect_3100_DE),
+                  length(intersect_655_DE), length(intersect_672_DE), length(intersect_6100_DE),
+                  length(intersect_955_DE), length(intersect_972_DE), length(intersect_9100_DE))
+num_meta_DE <- c(nrow(meta355_DE), nrow(meta372_DE), nrow(meta3100_DE),
+                 nrow(meta655_DE), nrow(meta672_DE), nrow(meta6100_DE),
+                 nrow(meta955_DE), nrow(meta972_DE), nrow(meta9100_DE))
+
+acc_up <- round(c(acc_355_up, acc_372_up, acc_3100_up, 
+            acc_655_up, acc_672_up, acc_6100_up, 
+            acc_955_up, acc_972_up, acc_9100_up), digits = 3)
+acc_down <- c(acc_355_down, acc_372_down, "undefined", 
+            acc_655_down, acc_672_down, "undefined", 
+            acc_955_down, acc_972_down, "undefined")
+acc_DE <- round(c(acc_355_DE, acc_372_DE, acc_3100_DE, 
+            acc_655_DE, acc_672_DE, acc_6100_DE, 
+            acc_955_DE, acc_972_DE, acc_9100_DE), digits =3)
+
+edgeR_acc <- data.frame(size_sample, num_intersec_up, num_meta_up, acc_up, num_intersec_down, num_meta_down, acc_down, num_intersec_DE, num_meta_DE, acc_DE)
+edgeR_acc
+
+
+```
+
+```{r}
+# export .csv files
+write.csv(edgeR_acc,"Accuracy_EdgeR_Vs_meta.csv", row.names = FALSE)
+```
+
